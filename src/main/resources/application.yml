@@ -1,13 +1,41 @@
 spring:
   application:
     name: frete-teste
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
-      - org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
-      - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
-      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
-      - org.springframework.boot.cache.autoconfigure.CacheAutoConfiguration
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/frete_teste
+    username: frete_user
+    password: frete_pass
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 86400000
 
 server:
   port: 8080
+
+brasilapi:
+  cep-url: https://brasilapi.com.br/api/cep/v2/{cep}
+
+logging:
+  level:
+    com.desafiogruporevise.frete_teste: DEBUG
