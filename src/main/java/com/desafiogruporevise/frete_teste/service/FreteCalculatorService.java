@@ -2,11 +2,12 @@ package com.desafiogruporevise.frete_teste.service;
 
 import com.desafiogruporevise.frete_teste.client.BrasilApiCepClient;
 import com.desafiogruporevise.frete_teste.client.BrasilApiCepResponse;
+import com.desafiogruporevise.frete_teste.client.NominatimGeocodingClient;
+import com.desafiogruporevise.frete_teste.client.NominatimResponse;
 import com.desafiogruporevise.frete_teste.dto.LocalizacaoDTO;
 import com.desafiogruporevise.frete_teste.dto.OpcaoFreteDTO;
 import com.desafiogruporevise.frete_teste.dto.SimulacaoFreteRequest;
 import com.desafiogruporevise.frete_teste.dto.SimulacaoFreteResponse;
-import com.desafiogruporevise.frete_teste.exception.CepSemCoordenadaException;
 import com.desafiogruporevise.frete_teste.exception.NenhumaTransportadoraDisponivelException;
 import com.desafiogruporevise.frete_teste.model.Transportadora;
 import com.desafiogruporevise.frete_teste.repository.TransportadoraRepository;
@@ -22,11 +23,14 @@ import java.util.List;
 public class FreteCalculatorService {
 
     private final BrasilApiCepClient cepClient;
+    private final NominatimGeocodingClient geocodingClient;
     private final TransportadoraRepository transportadoraRepository;
 
     public FreteCalculatorService(BrasilApiCepClient cepClient,
+                                   NominatimGeocodingClient geocodingClient,
                                    TransportadoraRepository transportadoraRepository) {
         this.cepClient = cepClient;
+        this.geocodingClient = geocodingClient;
         this.transportadoraRepository = transportadoraRepository;
     }
 
@@ -62,27 +66,12 @@ public class FreteCalculatorService {
     }
 
     private double calcularDistancia(BrasilApiCepResponse origem, BrasilApiCepResponse destino) {
-        double[] coordOrigem = extrairCoordenadas(origem);
-        double[] coordDestino = extrairCoordenadas(destino);
-        return GeoUtils.calcularDistanciaKm(
-                coordOrigem[0], coordOrigem[1],
-                coordDestino[0], coordDestino[1]);
-    }
+        NominatimResponse coordOrigem = geocodingClient.geocodificar(origem.city(), origem.state());
+        NominatimResponse coordDestino = geocodingClient.geocodificar(destino.city(), destino.state());
 
-    private double[] extrairCoordenadas(BrasilApiCepResponse resposta) {
-        if (resposta.location() == null || resposta.location().coordinates() == null) {
-            throw new CepSemCoordenadaException(resposta.cep());
-        }
-        String lat = resposta.location().coordinates().latitude();
-        String lon = resposta.location().coordinates().longitude();
-        if (lat == null || lat.isBlank() || lon == null || lon.isBlank()) {
-            throw new CepSemCoordenadaException(resposta.cep());
-        }
-        try {
-            return new double[]{Double.parseDouble(lat), Double.parseDouble(lon)};
-        } catch (NumberFormatException e) {
-            throw new CepSemCoordenadaException(resposta.cep());
-        }
+        return GeoUtils.calcularDistanciaKm(
+                Double.parseDouble(coordOrigem.lat()), Double.parseDouble(coordOrigem.lon()),
+                Double.parseDouble(coordDestino.lat()), Double.parseDouble(coordDestino.lon()));
     }
 
     private boolean elegivel(Transportadora t, SimulacaoFreteRequest request, BrasilApiCepResponse destino) {

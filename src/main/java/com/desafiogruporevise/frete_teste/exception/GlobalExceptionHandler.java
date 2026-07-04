@@ -37,8 +37,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
-    @ExceptionHandler(CepSemCoordenadaException.class)
-    public ResponseEntity<ErrorResponse> handleCepSemCoordenada(CepSemCoordenadaException ex) {
+    @ExceptionHandler(CidadeNaoGeocodificadaException.class)
+    public ResponseEntity<ErrorResponse> handleCidadeNaoGeocodificada(CidadeNaoGeocodificadaException ex) {
         ErrorResponse response = new ErrorResponse(HttpStatus.UNPROCESSABLE_ENTITY.value(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
     }
