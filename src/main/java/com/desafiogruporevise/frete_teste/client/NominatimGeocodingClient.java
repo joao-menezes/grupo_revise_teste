@@ -1,6 +1,8 @@
 package com.desafiogruporevise.frete_teste.client;
 
 import com.desafiogruporevise.frete_teste.exception.CidadeNaoGeocodificadaException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
@@ -11,6 +13,8 @@ import java.util.List;
 
 @Component
 public class NominatimGeocodingClient {
+
+    private static final Logger log = LoggerFactory.getLogger(NominatimGeocodingClient.class);
 
     private static final String URL = "https://nominatim.openstreetmap.org/search"
             + "?city={cidade}&state={estado}&country=Brazil&format=json&limit=1";
@@ -25,6 +29,7 @@ public class NominatimGeocodingClient {
 
     @Cacheable(value = "geo", key = "#cidade + '-' + #estado")
     public NominatimResponse geocodificar(String cidade, String estado) {
+        log.info(">>> CHAMANDO API EXTERNA (Nominatim) para {}/{} <<<", cidade, estado);
         List<NominatimResponse> resultados = restClient.get()
                 .uri(URL, cidade, estado)
                 .retrieve()
