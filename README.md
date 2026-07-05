@@ -1,33 +1,45 @@
 # Simulador de Frete
 
-API REST que simula frete entre dois CEPs e devolve a opção mais barata e a mais rápida entre as transportadoras cadastradas. Foi feita como desafio técnico, então tem algumas decisões de escopo comentadas mais abaixo.
+API REST para simular fretes entre dois CEPs e retornar tanto a opção mais barata quanto a mais rápida entre as transportadoras cadastradas.
 
-A ideia central: nenhuma regra de transportadora fica no código. Tudo — preço, peso aceito, seguro, UF bloqueada, tipo de carga, prazo — mora no banco. O motor de cálculo só sabe aplicar fórmulas genéricas em cima do que está lá.
+O projeto foi desenvolvido como desafio técnico. Toda a configuração das transportadoras fica armazenada no banco de dados, incluindo preço, limite de peso, seguro, estados bloqueados, tipos de carga aceitos e prazo de entrega. Dessa forma, o motor de cálculo apenas aplica as regras cadastradas, sem depender de lógica específica para cada transportadora.
 
 ## Stack
 
-Java 21, Spring Boot 4.1.0, PostgreSQL + Flyway, Redis, Docker.
+- Java 21
+- Spring Boot 4.1.0
+- PostgreSQL
+- Flyway
+- Redis
+- Docker
 
-## Subindo o projeto
+## Executando o projeto
 
 ```bash
 docker compose up -d
 ./mvnw spring-boot:run
 ```
 
-Sobe na `8080`. O Flyway já cria as tabelas e popula as 7 transportadoras sozinho, não precisa rodar nada no banco na mão.
+A aplicação ficará disponível na porta `8080`.
 
-## Testando no Postman / Insomnia
+Ao iniciar, o Flyway cria toda a estrutura do banco e insere automaticamente as sete transportadoras utilizadas pelo sistema.
 
-Cria uma requisição nova com isso:
+## Testando a API
 
-**Método:** `POST`
-**URL:** `http://localhost:8080/api/frete/simular`
+Faça uma requisição:
 
-**Headers:**
+**POST**
+
+`http://localhost:8080/api/frete/simular`
+
+### Headers
+
+```
 Content-Type: application/json
+```
 
-**Body (raw / JSON):**
+### Body
+
 ```json
 {
   "cepOrigem": "20040020",
@@ -38,47 +50,65 @@ Content-Type: application/json
 }
 ```
 
-`tipoCarga` aceita `GERAL`, `FRAGIL` ou `QUIMICA`. CEP pode ir com ou sem hífen, a API normaliza sozinha.
+Os tipos de carga aceitos são:
 
-Resposta esperada:
+- GERAL
+- FRAGIL
+- QUIMICA
+
+### Exemplo de resposta
 
 ```json
 {
-  "origem": { "cidade": "Rio de Janeiro", "estado": "RJ" },
-  "destino": { "cidade": "São Paulo", "estado": "SP" },
-  "freteMaisBarato": { "transportadora": "EcoTrans", "valor": 45.70, "prazoDias": 3 },
-  "freteMaisRapido": { "transportadora": "RápidaLog", "valor": 240.00, "prazoDias": 2 }
+  "origem": {
+    "cidade": "Rio de Janeiro",
+    "estado": "RJ"
+  },
+  "destino": {
+    "cidade": "São Paulo",
+    "estado": "SP"
+  },
+  "freteMaisBarato": {
+    "transportadora": "EcoTrans",
+    "valor": 45.70,
+    "prazoDias": 3
+  },
+  "freteMaisRapido": {
+    "transportadora": "RápidaLog",
+    "valor": 240.00,
+    "prazoDias": 2
+  }
 }
 ```
 
-Se quiser deixar salvo como environment variable no Postman/Insomnia, cria uma `base_url = http://localhost:8080` e usa `{{base_url}}/api/frete/simular` na URL — facilita se depois você for testar contra outro ambiente.
-
-### Erros
+## Possíveis respostas de erro
 
 | Situação | Status |
-|---|---|
-| Payload mal formado (peso negativo, campo faltando, CEP com letra) | `400` |
-| CEP não existe | `404` |
-| Nenhuma transportadora atende as regras do pedido | `422` |
+|----------|--------|
+| Payload inválido (peso negativo, campos obrigatórios ausentes ou CEP inválido) | `400` |
+| CEP não encontrado | `404` |
+| Nenhuma transportadora atende aos requisitos do pedido | `422` |
 
-## Sobre o cálculo de distância
+## Como a distância é calculada
 
-Essa foi a parte mais chata do desafio. A ideia inicial era pegar a coordenada que a BrasilAPI devolve junto com o CEP e calcular a distância direto. Só que na prática a maioria dos CEPs cai num provedor (`open-cep`) que não preenche coordenada nenhuma — testei um punhado de CEPs de capitais diferentes e nenhum veio com `location` preenchido.
+A ideia inicial era utilizar as coordenadas retornadas pela BrasilAPI para calcular a distância entre os CEPs. Na prática isso não funcionou, porque boa parte dos CEPs é resolvida pelo OpenCEP, que normalmente não retorna informações de latitude e longitude.
 
-Solução: a BrasilAPI resolve CEP pra cidade/estado (isso nunca falha), e a distância vem de geocodificar cidade/estado no Nominatim (OpenStreetMap) e aplicar Haversine em cima. É distância em linha reta, não rota de estrada real — dá uma aproximação razoável, mas não é o valor exato que uma transportadora cobraria numa rota rodoviária de verdade. Pra isso precisaria de uma API de rotas tipo OSRM, que ficou fora do escopo.
+A solução adotada foi consultar a BrasilAPI para obter cidade e estado de cada CEP. Depois disso, essas informações são enviadas ao Nominatim (OpenStreetMap), que retorna as coordenadas da cidade. Com esses pontos é aplicada a fórmula de Haversine para estimar a distância.
 
-Ambas as chamadas (BrasilAPI e Nominatim) ficam cacheadas no Redis por 24h, então na prática cada cidade só bate na internet uma vez.
+Esse cálculo representa uma distância em linha reta, portanto não corresponde ao trajeto real de uma rodovia. Para obter distâncias reais seria necessário utilizar uma API de rotas, como o OSRM, o que ficou fora do escopo do desafio.
 
-## Rodando os testes
+As consultas feitas à BrasilAPI e ao Nominatim ficam armazenadas em cache no Redis por 24 horas, reduzindo chamadas repetidas para os mesmos locais.
+
+## Executando os testes
 
 ```bash
 ./mvnw test
 ```
 
-Os testes do `FreteCalculatorService` cobrem os casos de fronteira que mais gostam de dar bug: peso exclusivo vs inclusivo, o limite exato onde uma NF-e passa a bloquear ou liberar uma transportadora, esse tipo de coisa. Rodam com mock, não dependem de Postgres ou Redis de pé.
+Os testes do `FreteCalculatorService` verificam principalmente casos de fronteira, como limites de peso e de valor do pedido, garantindo que as regras sejam aplicadas corretamente. Eles utilizam mocks e não dependem de PostgreSQL nem de Redis em execução.
 
-## Umas decisões que vale registrar
+## Algumas decisões de implementação
 
-- `ddl-auto: validate` — o Flyway é dono do schema, o Hibernate só confere se bate. Nunca deixo o JPA criar tabela sozinho.
-- Bloqueio de UF é checado contra o **destino**, não a origem. Assumi que "não atende tal região" quer dizer não entrega lá.
-- Não deixei nenhum endpoint de debug/listagem de todas as transportadoras na versão final — o que precisei validar manualmente durante o desenvolvimento virou teste automatizado em vez de ficar exposto como rota.
+- O Hibernate foi configurado com `ddl-auto: validate`, deixando a criação e versionamento do banco sob responsabilidade do Flyway.
+- A validação de estados bloqueados considera apenas o estado de destino.
+- Não foram mantidos endpoints de apoio ou debug na versão final. As validações feitas durante o desenvolvimento foram transformadas em testes automatizados.
