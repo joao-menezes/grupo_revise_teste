@@ -51,10 +51,10 @@ class FreteCalculatorServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(cepClient.buscarPorCep("01310930")).thenReturn(ORIGEM_SP);
+        lenient().when(cepClient.buscarPorCep("01310930")).thenReturn(ORIGEM_SP);
         lenient().when(cepClient.buscarPorCep("01310100")).thenReturn(DESTINO_SP);
         NominatimResponse coordenada = new NominatimResponse("-23.5505", "-46.6333");
-        when(geocodingClient.geocodificar("São Paulo", "SP")).thenReturn(coordenada);
+        lenient().when(geocodingClient.geocodificar("São Paulo", "SP")).thenReturn(coordenada);
     }
 
     private SimulacaoFreteRequest request(BigDecimal valorPedido, BigDecimal peso, TipoCarga tipoCarga) {
@@ -231,5 +231,14 @@ class FreteCalculatorServiceTest {
         SimulacaoFreteResponse resposta = service.simular(req);
 
         assertEquals("EcoTrans", resposta.freteMaisBarato().transportadora());
+    }
+
+    @Test
+    void cepComHifen_deveSerNormalizado() {
+        SimulacaoFreteRequest req = new SimulacaoFreteRequest(
+                "20040-020", "01310-930", new BigDecimal("500"), new BigDecimal("5.5"), TipoCarga.GERAL);
+
+        assertEquals("20040020", req.cepOrigem());
+        assertEquals("01310930", req.cepDestino());
     }
 }
