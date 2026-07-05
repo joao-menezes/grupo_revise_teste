@@ -22,8 +22,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class FreteCalculatorServiceTest {
@@ -40,25 +40,25 @@ class FreteCalculatorServiceTest {
     @InjectMocks
     private FreteCalculatorService service;
 
-    private static final BrasilApiCepResponse ORIGEM_SP =
-        new BrasilApiCepResponse("01310930", "SP", "São Paulo", "Bela Vista", "Av. Paulista");
+    private static final BrasilApiCepResponse ORIGIN_SP =
+            new BrasilApiCepResponse("01310930", "SP", "São Paulo", "Bela Vista", "Av. Paulista");
 
-    private static final BrasilApiCepResponse DESTINO_SP =
-        new BrasilApiCepResponse("01310100", "SP", "São Paulo", "Bela Vista", "Av. Paulista");
-    
-    private static final BrasilApiCepResponse DESTINO_MG =
-        new BrasilApiCepResponse("30130010", "MG", "Belo Horizonte", "Centro", "Rua Tal");
+    private static final BrasilApiCepResponse DESTINATION_SP =
+            new BrasilApiCepResponse("01310100", "SP", "São Paulo", "Bela Vista", "Av. Paulista");
+
+    private static final BrasilApiCepResponse DESTINATION_MG =
+            new BrasilApiCepResponse("30130010", "MG", "Belo Horizonte", "Centro", "Rua Tal");
 
     @BeforeEach
     void setUp() {
-        lenient().when(cepClient.buscarPorCep("01310930")).thenReturn(ORIGEM_SP);
-        lenient().when(cepClient.buscarPorCep("01310100")).thenReturn(DESTINO_SP);
-        NominatimResponse coordenada = new NominatimResponse("-23.5505", "-46.6333");
-        lenient().when(geocodingClient.geocodificar("São Paulo", "SP")).thenReturn(coordenada);
+        lenient().when(cepClient.buscarPorCep("01310930")).thenReturn(ORIGIN_SP);
+        lenient().when(cepClient.buscarPorCep("01310100")).thenReturn(DESTINATION_SP);
+        NominatimResponse coordinates = new NominatimResponse("-23.5505", "-46.6333");
+        lenient().when(geocodingClient.geocodificar("São Paulo", "SP")).thenReturn(coordinates);
     }
 
-    private SimulacaoFreteRequest request(BigDecimal valorPedido, BigDecimal peso, TipoCarga tipoCarga) {
-        return new SimulacaoFreteRequest("01310930", "01310100", valorPedido, peso, tipoCarga);
+    private SimulacaoFreteRequest buildRequest(BigDecimal orderValue, BigDecimal weight, TipoCarga cargoType) {
+        return new SimulacaoFreteRequest("01310930", "01310100", orderValue, weight, cargoType);
     }
 
     private Transportadora tartarugaFretes() {
@@ -139,70 +139,70 @@ class FreteCalculatorServiceTest {
     }
 
     @Test
-    void tartarugaFretes_pesoNoLimiteExclusivo_deveRejeitar() {
+    void tartarugaFretes_weightAtExclusiveLimit_shouldReject() {
         when(transportadoraRepository.findAll()).thenReturn(List.of(tartarugaFretes()));
-        SimulacaoFreteRequest req = request(new BigDecimal("300"), new BigDecimal("10.00"), TipoCarga.GERAL);
+        SimulacaoFreteRequest req = buildRequest(new BigDecimal("300"), new BigDecimal("10.00"), TipoCarga.GERAL);
 
         assertThrows(NenhumaTransportadoraDisponivelException.class, () -> service.simular(req));
     }
 
     @Test
-    void tartarugaFretes_pesoAcimaDoLimiteExclusivo_deveAceitar() {
+    void tartarugaFretes_weightAboveExclusiveLimit_shouldAccept() {
         when(transportadoraRepository.findAll()).thenReturn(List.of(tartarugaFretes()));
-        SimulacaoFreteRequest req = request(new BigDecimal("300"), new BigDecimal("10.01"), TipoCarga.GERAL);
+        SimulacaoFreteRequest req = buildRequest(new BigDecimal("300"), new BigDecimal("10.01"), TipoCarga.GERAL);
 
-        SimulacaoFreteResponse resposta = service.simular(req);
+        SimulacaoFreteResponse response = service.simular(req);
 
-        assertEquals("TartarugaFretes", resposta.freteMaisBarato().transportadora());
+        assertEquals("TartarugaFretes", response.freteMaisBarato().transportadora());
     }
 
     @Test
-    void ecoTrans_nfeExatamenteNoLimite_deveAceitar() {
+    void ecoTrans_invoiceValueExactlyAtLimit_shouldAccept() {
         when(transportadoraRepository.findAll()).thenReturn(List.of(ecoTrans()));
-        SimulacaoFreteRequest req = request(new BigDecimal("2000.00"), new BigDecimal("5"), TipoCarga.GERAL);
+        SimulacaoFreteRequest req = buildRequest(new BigDecimal("2000.00"), new BigDecimal("5"), TipoCarga.GERAL);
 
-        SimulacaoFreteResponse resposta = service.simular(req);
+        SimulacaoFreteResponse response = service.simular(req);
 
-        assertEquals("EcoTrans", resposta.freteMaisBarato().transportadora());
+        assertEquals("EcoTrans", response.freteMaisBarato().transportadora());
     }
 
     @Test
-    void ecoTrans_nfeAcimaDoLimite_deveRejeitar() {
+    void ecoTrans_invoiceValueAboveLimit_shouldReject() {
         when(transportadoraRepository.findAll()).thenReturn(List.of(ecoTrans()));
-        SimulacaoFreteRequest req = request(new BigDecimal("2000.01"), new BigDecimal("5"), TipoCarga.GERAL);
+        SimulacaoFreteRequest req = buildRequest(new BigDecimal("2000.01"), new BigDecimal("5"), TipoCarga.GERAL);
 
         assertThrows(NenhumaTransportadoraDisponivelException.class, () -> service.simular(req));
     }
 
     @Test
-    void safeCargo_nfeAbaixoDoMinimo_deveRejeitar() {
+    void safeCargo_invoiceValueBelowMinimum_shouldReject() {
         when(transportadoraRepository.findAll()).thenReturn(List.of(safeCargo()));
-        SimulacaoFreteRequest req = request(new BigDecimal("999.99"), new BigDecimal("10"), TipoCarga.FRAGIL);
+        SimulacaoFreteRequest req = buildRequest(new BigDecimal("999.99"), new BigDecimal("10"), TipoCarga.FRAGIL);
 
         assertThrows(NenhumaTransportadoraDisponivelException.class, () -> service.simular(req));
     }
 
     @Test
-    void safeCargo_nfeExatamenteNoMinimo_deveAceitar() {
+    void safeCargo_invoiceValueExactlyAtMinimum_shouldAccept() {
         when(transportadoraRepository.findAll()).thenReturn(List.of(safeCargo()));
-        SimulacaoFreteRequest req = request(new BigDecimal("1000.00"), new BigDecimal("10"), TipoCarga.FRAGIL);
+        SimulacaoFreteRequest req = buildRequest(new BigDecimal("1000.00"), new BigDecimal("10"), TipoCarga.FRAGIL);
 
-        SimulacaoFreteResponse resposta = service.simular(req);
+        SimulacaoFreteResponse response = service.simular(req);
 
-        assertEquals("SafeCargo", resposta.freteMaisBarato().transportadora());
+        assertEquals("SafeCargo", response.freteMaisBarato().transportadora());
     }
 
     @Test
-    void quimiTrans_cargaGeral_deveRejeitar() {
+    void quimiTrans_generalCargo_shouldReject() {
         when(transportadoraRepository.findAll()).thenReturn(List.of(quimiTrans()));
-        SimulacaoFreteRequest req = request(new BigDecimal("300"), new BigDecimal("100"), TipoCarga.GERAL);
+        SimulacaoFreteRequest req = buildRequest(new BigDecimal("300"), new BigDecimal("100"), TipoCarga.GERAL);
 
         assertThrows(NenhumaTransportadoraDisponivelException.class, () -> service.simular(req));
     }
 
     @Test
-    void quimiTrans_cargaQuimica_deveAceitar() {
-        when(cepClient.buscarPorCep("30130010")).thenReturn(DESTINO_MG);
+    void quimiTrans_chemicalCargo_shouldAccept() {
+        when(cepClient.buscarPorCep("30130010")).thenReturn(DESTINATION_MG);
         when(geocodingClient.geocodificar("Belo Horizonte", "MG"))
                 .thenReturn(new NominatimResponse("-19.9167", "-43.9345"));
 
@@ -210,35 +210,44 @@ class FreteCalculatorServiceTest {
         SimulacaoFreteRequest req = new SimulacaoFreteRequest(
                 "01310930", "30130010", new BigDecimal("300"), new BigDecimal("100"), TipoCarga.QUIMICA);
 
-        SimulacaoFreteResponse resposta = service.simular(req);
+        SimulacaoFreteResponse response = service.simular(req);
 
-        assertEquals("QuimiTrans", resposta.freteMaisBarato().transportadora());
+        assertEquals("QuimiTrans", response.freteMaisBarato().transportadora());
     }
 
     @Test
-    void nenhumaTransportadoraElegivel_deveLancarExcecao() {
+    void noCarrierEligible_shouldThrowException() {
         when(transportadoraRepository.findAll()).thenReturn(List.of());
-        SimulacaoFreteRequest req = request(new BigDecimal("300"), new BigDecimal("5"), TipoCarga.GERAL);
+        SimulacaoFreteRequest req = buildRequest(new BigDecimal("300"), new BigDecimal("5"), TipoCarga.GERAL);
 
         assertThrows(NenhumaTransportadoraDisponivelException.class, () -> service.simular(req));
     }
 
     @Test
-    void escolheCorretamenteMaisBaratoEMaisRapido() {
+    void picksCheapestAndFastestCorrectly() {
         when(transportadoraRepository.findAll()).thenReturn(List.of(ecoTrans(), safeCargo()));
-        SimulacaoFreteRequest req = request(new BigDecimal("1500"), new BigDecimal("10"), TipoCarga.GERAL);
+        SimulacaoFreteRequest req = buildRequest(new BigDecimal("1500"), new BigDecimal("10"), TipoCarga.GERAL);
 
-        SimulacaoFreteResponse resposta = service.simular(req);
+        SimulacaoFreteResponse response = service.simular(req);
 
-        assertEquals("EcoTrans", resposta.freteMaisBarato().transportadora());
+        assertEquals("EcoTrans", response.freteMaisBarato().transportadora());
     }
 
     @Test
-    void cepComHifen_deveSerNormalizado() {
+    void zipCodeWithHyphen_shouldBeNormalized() {
         SimulacaoFreteRequest req = new SimulacaoFreteRequest(
                 "20040-020", "01310-930", new BigDecimal("500"), new BigDecimal("5.5"), TipoCarga.GERAL);
 
         assertEquals("20040020", req.cepOrigem());
         assertEquals("01310930", req.cepDestino());
+    }
+
+    @Test
+    void weightExceedsAllCarriersLimit_shouldReject() {
+        when(transportadoraRepository.findAll()).thenReturn(
+                List.of(tartarugaFretes(), ecoTrans(), safeCargo(), quimiTrans()));
+        SimulacaoFreteRequest req = buildRequest(new BigDecimal("57800"), new BigDecimal("999.5"), TipoCarga.GERAL);
+
+        assertThrows(NenhumaTransportadoraDisponivelException.class, () -> service.simular(req));
     }
 }
