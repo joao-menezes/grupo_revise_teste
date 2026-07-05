@@ -1,6 +1,6 @@
 spring:
   application:
-    name: frete-teste
+    name: simulador-frete
 
   datasource:
     url: jdbc:postgresql://localhost:5432/frete_teste
@@ -39,4 +39,4 @@ brasilapi:
 
 logging:
   level:
-    com.desafiogruporevise.frete_teste: DEBUG
+    com.desafiogruporevise.simulador_frete: DEBUG

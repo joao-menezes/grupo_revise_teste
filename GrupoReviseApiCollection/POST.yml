@@ -1,6 +1,7 @@
 info:
   name: POST
   type: http
+  seq: 1
 
 http:
   method: POST
@@ -9,8 +10,8 @@ http:
     type: json
     data: |-
       {
-        "cepOrigem": "20040020",
-        "cepDestino": "01310930",
+        "cepOrigem": "20040-020",
+        "cepDestino": "01310-930",
         "valorPedido": 500.00,
         "peso": 5.5,
         "tipoCarga": "GERAL"
